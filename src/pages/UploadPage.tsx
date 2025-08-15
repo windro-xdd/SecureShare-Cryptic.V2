@@ -60,7 +60,7 @@ export default function UploadPage() {
       setProgress(50);
 
       const fileId = crypto.randomUUID();
-      const filePath = `${fileId}/${file.name}`;
+      const filePath = fileId;
 
       const { error: uploadError } = await supabase.storage
         .from("files")

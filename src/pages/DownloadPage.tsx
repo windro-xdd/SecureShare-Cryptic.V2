@@ -71,7 +71,7 @@ export default function DownloadPage() {
       }
 
       // Step 2: Download the file from storage
-      const filePath = `${fileId}/${metadata.filename}`;
+      const filePath = fileId;
       const { data: blob, error: downloadError } = await supabase.storage
         .from("files")
         .download(filePath);
