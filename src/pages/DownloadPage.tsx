@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useLocation } from "react-router-dom";
-import { DownloadCloud, KeyRound, File as FileIcon, AlertTriangle, Loader2, CheckCircle } from "lucide-react";
+import { DownloadCloud, KeyRound, File as FileIcon, AlertTriangle, Loader2, CheckCircle, MessageSquare, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { decryptFile } from "@/lib/crypto";
+import { getFileKey, decryptInstructions, decryptFile } from "@/lib/crypto";
 import { supabase } from "@/integrations/supabase/client";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
-type Status = "idle" | "loading" | "ready" | "decrypting" | "success" | "error";
+type Status = "idle" | "loading" | "verifying" | "ready" | "decrypting" | "success" | "error";
 type FileMetadata = Awaited<ReturnType<typeof fetchMetadata>>;
 
 function fetchMetadata(fileId: string) {
@@ -26,61 +27,64 @@ export default function DownloadPage() {
   const [metadata, setMetadata] = useState<FileMetadata["data"] | null>(null);
   const [downloadCode, setDownloadCode] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isCodeVerified, setIsCodeVerified] = useState(false);
+  const [instructions, setInstructions] = useState<string | null>(null);
+  const [fileKey, setFileKey] = useState<CryptoKey | null>(null);
 
   const initialCode = useMemo(() => location.hash.slice(1), [location.hash]);
 
   useEffect(() => {
-    if (initialCode) {
-      setDownloadCode(initialCode);
-    }
+    if (initialCode) setDownloadCode(initialCode);
     if (!fileId) {
       setStatus("error");
       setErrorMessage("No file ID provided.");
       return;
     }
-
     const getMetadata = async () => {
       setStatus("loading");
       const { data, error } = await fetchMetadata(fileId);
       if (error || !data) {
         setStatus("error");
-        setErrorMessage(error?.message || "File not found, expired, or already downloaded.");
+        setErrorMessage(error?.message || "File not found, expired, or has reached its download limit.");
       } else {
         setMetadata(data);
-        setStatus("ready");
+        setStatus("idle");
       }
     };
     getMetadata();
   }, [fileId, initialCode]);
 
-  const handleDownload = async () => {
-    if (!fileId || !metadata || !downloadCode) return;
+  const handleVerifyCode = async () => {
+    if (!metadata || !downloadCode) return;
+    setStatus("verifying");
+    setErrorMessage("");
+    try {
+      const key = await getFileKey(metadata, downloadCode);
+      setFileKey(key);
+      const decryptedInstructions = await decryptInstructions(metadata, key);
+      setInstructions(decryptedInstructions);
+      setIsCodeVerified(true);
+      setStatus("ready");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Verification failed.";
+      setErrorMessage(message);
+      setStatus("error");
+    }
+  };
 
+  const handleDownload = async () => {
+    if (!fileId || !metadata || !fileKey) return;
     setStatus("decrypting");
     setErrorMessage("");
-
     try {
-      // Step 1: Increment download count via Edge Function to validate the link
-      const { error: functionError } = await supabase.functions.invoke('increment-download-count', {
-        body: { fileId },
-      });
-
+      const { error: functionError } = await supabase.functions.invoke('increment-download-count', { body: { fileId } });
       if (functionError) {
         const errorResponse = await functionError.context?.json();
         throw new Error(errorResponse?.error || 'This link has expired or reached its download limit.');
       }
-
-      // Step 2: Download the file from storage
-      const filePath = fileId;
-      const { data: blob, error: downloadError } = await supabase.storage
-        .from("files")
-        .download(filePath);
-
+      const { data: blob, error: downloadError } = await supabase.storage.from("files").download(fileId);
       if (downloadError) throw new Error(`Failed to download file: ${downloadError.message}`);
-
-      // Step 3: Decrypt and save the file
-      const decryptedBlob = await decryptFile(await blob.arrayBuffer(), metadata, downloadCode);
-
+      const decryptedBlob = await decryptFile(await blob.arrayBuffer(), metadata, fileKey);
       const url = URL.createObjectURL(decryptedBlob);
       const a = document.createElement("a");
       a.href = url;
@@ -89,10 +93,8 @@ export default function DownloadPage() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-
       setStatus("success");
     } catch (err) {
-      console.error(err);
       const message = err instanceof Error ? err.message : "An unknown error occurred.";
       setErrorMessage(message);
       setStatus("error");
@@ -103,7 +105,11 @@ export default function DownloadPage() {
     <div className="min-h-screen bg-gradient-bg flex items-center justify-center p-4">
       <Card className="w-full max-w-lg bg-card/80 backdrop-blur-md border-primary/20 shadow-card">
         <CardHeader>
-          <CardTitle className="text-center text-2xl font-bold text-primary">Download File</CardTitle>
+            <div className="flex justify-between items-center">
+                <div className="w-8"></div>
+                <CardTitle className="text-center text-2xl font-bold text-primary">Download File</CardTitle>
+                <ThemeToggle />
+            </div>
         </CardHeader>
         <CardContent className="space-y-6">
           {status === "loading" && (
@@ -113,7 +119,7 @@ export default function DownloadPage() {
             </div>
           )}
 
-          {(status === "ready" || status === "decrypting") && metadata && (
+          {(status === "idle" || status === "verifying" || status === "ready" || status === "decrypting") && metadata && !isCodeVerified && (
             <>
               <div className="flex items-center justify-between rounded-md border border-border bg-background/50 p-4">
                 <div className="flex items-center gap-4">
@@ -125,20 +131,27 @@ export default function DownloadPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <label htmlFor="download-code" className="flex items-center text-muted-foreground">
-                  <KeyRound className="mr-2 h-4 w-4" />
-                  Download Code
-                </label>
-                <Input
-                  id="download-code"
-                  value={downloadCode}
-                  onChange={(e) => setDownloadCode(e.target.value)}
-                  placeholder="Enter the download code..."
-                  className="font-mono"
-                />
+                <Label htmlFor="download-code" className="flex items-center text-muted-foreground">
+                  <KeyRound className="mr-2 h-4 w-4" /> Download Code
+                </Label>
+                <Input id="download-code" value={downloadCode} onChange={(e) => setDownloadCode(e.target.value)} placeholder="Enter the download code..." className="font-mono" />
               </div>
-              <Button onClick={handleDownload} disabled={!downloadCode || status === "decrypting"} className="w-full bg-gradient-primary text-primary-foreground hover:shadow-glow">
-                {status === "decrypting" ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying & Downloading...</> : <><DownloadCloud className="mr-2 h-4 w-4" /> Decrypt & Download</>}
+              <Button onClick={handleVerifyCode} disabled={!downloadCode || status === "verifying"} className="w-full">
+                {status === "verifying" ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying...</> : <><ShieldCheck className="mr-2 h-4 w-4" /> Verify Code</>}
+              </Button>
+            </>
+          )}
+
+          {isCodeVerified && metadata && (
+            <>
+              {instructions && (
+                <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/10 p-4">
+                  <Label className="flex items-center"><MessageSquare className="mr-2 h-4 w-4" /> Note from Sender</Label>
+                  <p className="text-sm text-foreground/90">{instructions}</p>
+                </div>
+              )}
+              <Button onClick={handleDownload} disabled={status === "decrypting"} className="w-full bg-gradient-primary text-primary-foreground hover:shadow-glow">
+                {status === "decrypting" ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Decrypting...</> : <><DownloadCloud className="mr-2 h-4 w-4" /> Decrypt & Download</>}
               </Button>
             </>
           )}
@@ -147,9 +160,7 @@ export default function DownloadPage() {
              <div className="space-y-6 text-center p-8">
               <CheckCircle className="mx-auto h-16 w-16 text-success" />
               <h3 className="text-2xl font-bold">Download Started!</h3>
-              <p className="text-muted-foreground">
-                Your file has been decrypted and should be downloading now. This link is now expired.
-              </p>
+              <p className="text-muted-foreground">Your file has been decrypted and should be downloading now. This link may now be expired.</p>
               <Button onClick={() => window.location.href = '/'} className="w-full">Share Another File</Button>
             </div>
           )}

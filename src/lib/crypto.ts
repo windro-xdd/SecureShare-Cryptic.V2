@@ -42,7 +42,6 @@ function encodeBase32(bytes: Uint8Array): string {
 const arrayBufferToHex = (bytes: Uint8Array) =>
   Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 
-// Rewritten to be explicit about ArrayBuffer creation, which resolves the TS errors.
 const hexToArrayBuffer = (hex: string): Uint8Array => {
   const buffer = new ArrayBuffer(hex.length / 2);
   const view = new Uint8Array(buffer);
@@ -54,20 +53,11 @@ const hexToArrayBuffer = (hex: string): Uint8Array => {
 
 // --- Core Cryptographic Functions ---
 
-/**
- * Generates a human-friendly, secure download code.
- * @param {number} length - The desired length of the code.
- * @returns {string} The generated download code.
- */
 export function generateDownloadCode(length = 10): string {
   const randomBytes = crypto.getRandomValues(new Uint8Array(Math.ceil(length * 5 / 8)));
   return encodeBase32(randomBytes).slice(0, length);
 }
 
-/**
- * Generates a new symmetric key for file encryption.
- * @returns {Promise<CryptoKey>} The generated file key.
- */
 export async function generateFileKey(): Promise<CryptoKey> {
   return crypto.subtle.generateKey(
     { name: KEY_ALG, length: KEY_LEN },
@@ -76,12 +66,6 @@ export async function generateFileKey(): Promise<CryptoKey> {
   );
 }
 
-/**
- * Derives a Key Encryption Key (KEK) from the download code and salt.
- * @param {string} downloadCode - The user-provided download code.
- * @param {Uint8Array} salt - The salt used for key derivation.
- * @returns {Promise<CryptoKey>} The derived KEK.
- */
 async function deriveKek(downloadCode: string, salt: Uint8Array): Promise<CryptoKey> {
   const baseKey = await crypto.subtle.importKey(
     "raw",
@@ -94,7 +78,7 @@ async function deriveKek(downloadCode: string, salt: Uint8Array): Promise<Crypto
   return crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt: salt.slice(), // FIX: Use slice() to create a copy with a definite ArrayBuffer
+      salt: salt.slice(),
       iterations: KDF_ITERATIONS,
       hash: KDF_HASH,
     },
@@ -105,12 +89,6 @@ async function deriveKek(downloadCode: string, salt: Uint8Array): Promise<Crypto
   );
 }
 
-/**
- * Encrypts the file key (key wrapping).
- * @param {CryptoKey} fileKey - The key to wrap.
- * @param {CryptoKey} kek - The Key Encryption Key.
- * @returns {Promise<{wrappedKey: ArrayBuffer, iv: Uint8Array}>} The wrapped key and the IV used.
- */
 async function wrapFileKey(fileKey: CryptoKey, kek: CryptoKey): Promise<{ wrappedKey: ArrayBuffer, iv: Uint8Array }> {
   const iv = crypto.getRandomValues(new Uint8Array(WRAP_IV_BYTES));
   const wrappedKey = await crypto.subtle.wrapKey(
@@ -122,19 +100,12 @@ async function wrapFileKey(fileKey: CryptoKey, kek: CryptoKey): Promise<{ wrappe
   return { wrappedKey, iv };
 }
 
-/**
- * Decrypts the file key (key unwrapping).
- * @param {Uint8Array} wrappedKey - The encrypted file key.
- * @param {Uint8Array} iv - The IV used for wrapping.
- * @param {CryptoKey} kek - The Key Encryption Key.
- * @returns {Promise<CryptoKey>} The unwrapped file key.
- */
 async function unwrapFileKey(wrappedKey: Uint8Array, iv: Uint8Array, kek: CryptoKey): Promise<CryptoKey> {
   return crypto.subtle.unwrapKey(
     "raw",
-    wrappedKey.slice(), // FIX: Use slice() to satisfy type checker
+    wrappedKey.slice(),
     kek,
-    { name: WRAP_ALG, iv: iv.slice() }, // FIX: Use slice() to satisfy type checker
+    { name: WRAP_ALG, iv: iv.slice() },
     { name: KEY_ALG, length: KEY_LEN },
     true,
     ["encrypt", "decrypt"]
@@ -142,14 +113,7 @@ async function unwrapFileKey(wrappedKey: Uint8Array, iv: Uint8Array, kek: Crypto
 }
 
 // --- Sender Flow ---
-
-/**
- * Encrypts a file and prepares the metadata envelope for upload.
- * @param {File} file - The file to encrypt.
- * @param {string} downloadCode - The generated download code.
- * @returns {Promise<{ciphertext: ArrayBuffer, envelope: object}>} The encrypted data and public metadata.
- */
-export async function encryptFile(file: File, downloadCode: string) {
+export async function encryptFile(file: File, downloadCode: string, instructions?: string) {
   const fileKey = await generateFileKey();
   const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTES));
   const kek = await deriveKek(downloadCode, salt);
@@ -163,6 +127,20 @@ export async function encryptFile(file: File, downloadCode: string) {
     fileKey,
     fileBuffer
   );
+
+  let encryptedInstructionsData = {};
+  if (instructions && instructions.trim() !== "") {
+    const instructions_iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
+    const encrypted_instructions = await crypto.subtle.encrypt(
+      { name: KEY_ALG, iv: instructions_iv },
+      fileKey,
+      new TextEncoder().encode(instructions)
+    );
+    encryptedInstructionsData = {
+      encrypted_instructions: arrayBufferToHex(new Uint8Array(encrypted_instructions)),
+      instructions_iv: arrayBufferToHex(instructions_iv),
+    };
+  }
 
   const envelope = {
     filename: file.name,
@@ -178,7 +156,7 @@ export async function encryptFile(file: File, downloadCode: string) {
     },
     wrapped_file_key: arrayBufferToHex(new Uint8Array(wrappedKey)),
     wrap_iv: arrayBufferToHex(wrapIv),
-    // Note: expires_at and max_downloads are set server-side or in the upload component
+    ...encryptedInstructionsData,
   };
 
   return { ciphertext, envelope };
@@ -186,33 +164,49 @@ export async function encryptFile(file: File, downloadCode: string) {
 
 // --- Receiver Flow ---
 
-/**
- * Decrypts a file using the metadata envelope and download code.
- * @param {ArrayBuffer} ciphertext - The encrypted file data.
- * @param {object} envelope - The public metadata from the server.
- * @param {string} downloadCode - The user-provided download code.
- * @returns {Promise<Blob>} The decrypted file as a Blob.
- */
-export async function decryptFile(ciphertext: ArrayBuffer, envelope: any, downloadCode: string): Promise<Blob> {
-  try {
+export async function getFileKey(envelope: any, downloadCode: string): Promise<CryptoKey> {
     const salt = hexToArrayBuffer(envelope.salt);
     const kek = await deriveKek(downloadCode, salt);
-
     const wrappedKey = hexToArrayBuffer(envelope.wrapped_file_key);
     const wrapIv = hexToArrayBuffer(envelope.wrap_iv);
+    try {
+        return await unwrapFileKey(wrappedKey, wrapIv, kek);
+    } catch (error) {
+        console.error("Key unwrap failed:", error);
+        throw new Error("Decryption failed. The download code may be incorrect.");
+    }
+}
 
-    const fileKey = await unwrapFileKey(wrappedKey, wrapIv, kek);
-
+export async function decryptFile(ciphertext: ArrayBuffer, envelope: any, fileKey: CryptoKey): Promise<Blob> {
+  try {
     const iv = hexToArrayBuffer(envelope.iv);
     const decryptedBuffer = await crypto.subtle.decrypt(
-      { name: KEY_ALG, iv: iv.slice() }, // FIX: Use slice() to satisfy type checker
+      { name: KEY_ALG, iv: iv.slice() },
       fileKey,
       ciphertext
     );
-
     return new Blob([decryptedBuffer], { type: envelope.mime_type });
   } catch (error) {
-    console.error("Decryption failed:", error);
-    throw new Error("Decryption failed. The download code may be incorrect or the data corrupted.");
+    console.error("File decryption failed:", error);
+    throw new Error("File decryption failed. The data may be corrupted.");
   }
+}
+
+export async function decryptInstructions(envelope: any, fileKey: CryptoKey): Promise<string | null> {
+    if (!envelope.encrypted_instructions || !envelope.instructions_iv) {
+        return null;
+    }
+    try {
+        const instructions_iv = hexToArrayBuffer(envelope.instructions_iv);
+        const encrypted_instructions = hexToArrayBuffer(envelope.encrypted_instructions);
+        const decryptedBuffer = await crypto.subtle.decrypt(
+            { name: KEY_ALG, iv: instructions_iv.slice() },
+            fileKey,
+            encrypted_instructions
+        );
+        return new TextDecoder().decode(decryptedBuffer);
+    } catch (error) {
+        console.error("Instructions decryption failed:", error);
+        return "Could not decrypt instructions.";
+    }
 }

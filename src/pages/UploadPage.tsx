@@ -1,11 +1,13 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import { UploadCloud, File as FileIcon, CheckCircle, Copy, AlertTriangle, Loader2, X, ShieldCheck } from "lucide-react";
+import { UploadCloud, File as FileIcon, CheckCircle, Copy, AlertTriangle, Loader2, X, ShieldCheck, MessageSquare, Share2 } from "lucide-react";
+import QRCode from "qrcode.react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -17,6 +19,7 @@ import { generateDownloadCode, encryptFile } from "@/lib/crypto";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 type Status = "idle" | "uploading" | "success" | "error";
 
@@ -24,10 +27,11 @@ export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [progress, setProgress] = useState(0);
-  const [downloadCode, setDownloadCode] = useState("");
   const [shareUrl, setShareUrl] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [expiresInHours, setExpiresInHours] = useState(24);
+  const [maxDownloads, setMaxDownloads] = useState(1);
+  const [instructions, setInstructions] = useState("");
   const { toast } = useToast();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -53,10 +57,9 @@ export default function UploadPage() {
 
     try {
       const code = generateDownloadCode();
-      setDownloadCode(code);
-
+      
       setProgress(25);
-      const { ciphertext, envelope } = await encryptFile(file, code);
+      const { ciphertext, envelope } = await encryptFile(file, code, instructions);
       setProgress(50);
 
       const fileId = crypto.randomUUID();
@@ -72,13 +75,12 @@ export default function UploadPage() {
       setProgress(75);
 
       const expires_at = new Date(Date.now() + expiresInHours * 60 * 60 * 1000).toISOString();
-      const max_downloads = 1; // Enforce single download
 
       const { error: dbError } = await supabase.from("files").insert({
         id: fileId,
         ...envelope,
         expires_at,
-        max_downloads,
+        max_downloads: maxDownloads,
       });
 
       if (dbError) throw new Error(`Database error: ${dbError.message}`);
@@ -101,11 +103,26 @@ export default function UploadPage() {
     toast({ title: `${label} copied to clipboard!` });
   };
 
+  const handleNativeShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Secure Share File",
+          text: "Here is a secure file shared with you:",
+          url: shareUrl,
+        });
+      } catch (error) {
+        console.error("Error sharing:", error);
+      }
+    } else {
+      copyToClipboard(shareUrl, "Share link");
+    }
+  };
+
   const resetState = () => {
     setFile(null);
     setStatus("idle");
     setProgress(0);
-    setDownloadCode("");
     setShareUrl("");
     setErrorMessage("");
   };
@@ -114,7 +131,11 @@ export default function UploadPage() {
     <div className="min-h-screen bg-gradient-bg flex items-center justify-center p-4">
       <Card className="w-full max-w-lg bg-card/80 backdrop-blur-md border-primary/20 shadow-card">
         <CardHeader>
-          <CardTitle className="text-center text-2xl font-bold text-primary">Secure Share</CardTitle>
+            <div className="flex justify-between items-center">
+                <div className="w-8"></div>
+                <CardTitle className="text-center text-2xl font-bold text-primary">Secure Share</CardTitle>
+                <ThemeToggle />
+            </div>
         </CardHeader>
         <CardContent>
           {status !== "success" && (
@@ -147,31 +168,45 @@ export default function UploadPage() {
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="expires-in">Expires In</Label>
-                    <Select
-                      value={String(expiresInHours)}
-                      onValueChange={(value) => setExpiresInHours(Number(value))}
-                    >
-                      <SelectTrigger id="expires-in" className="w-full">
-                        <SelectValue placeholder="Select expiration time" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1 Hour</SelectItem>
-                        <SelectItem value="6">6 Hours</SelectItem>
-                        <SelectItem value="12">12 Hours</SelectItem>
-                        <SelectItem value="24">24 Hours</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                   <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/10 p-3">
-                    <ShieldCheck className="h-5 w-5 text-primary" />
-                    <div className="space-y-0.5">
-                      <p className="text-sm font-medium text-foreground">Links are single-use</p>
-                      <p className="text-[0.8rem] text-muted-foreground">
-                        For maximum security, links expire after one download.
-                      </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="expires-in">Expires In</Label>
+                      <Select
+                        value={String(expiresInHours)}
+                        onValueChange={(value) => setExpiresInHours(Number(value))}
+                      >
+                        <SelectTrigger id="expires-in"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">1 Hour</SelectItem>
+                          <SelectItem value="6">6 Hours</SelectItem>
+                          <SelectItem value="24">24 Hours</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="max-downloads">Download Limit</Label>
+                      <Select
+                        value={String(maxDownloads)}
+                        onValueChange={(value) => setMaxDownloads(Number(value))}
+                      >
+                        <SelectTrigger id="max-downloads"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 10 }, (_, i) => i + 1).map(n => 
+                            <SelectItem key={n} value={String(n)}>{n} download{n > 1 ? 's' : ''}</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="instructions">Recipient Note (optional, encrypted)</Label>
+                    <Textarea 
+                      id="instructions"
+                      placeholder="e.g., Here is the report for Q3."
+                      value={instructions}
+                      onChange={(e) => setInstructions(e.target.value)}
+                      maxLength={280}
+                    />
                   </div>
                 </div>
               )}
@@ -194,11 +229,10 @@ export default function UploadPage() {
           {status === "success" && (
             <div className="space-y-6 text-center">
               <CheckCircle className="mx-auto h-16 w-16 text-success" />
-              <h3 className="text-2xl font-bold">File Encrypted & Ready to Share!</h3>
-              <p className="text-muted-foreground">
-                Share the link below. The file will expire in {expiresInHours} {expiresInHours === 1 ? 'hour' : 'hours'} or after one download.
-              </p>
-              
+              <h3 className="text-2xl font-bold">File Ready to Share!</h3>
+              <div className="p-4 bg-white rounded-lg inline-block shadow-lg">
+                <QRCode value={shareUrl} size={160} includeMargin={true} level="H" />
+              </div>
               <div className="space-y-4 text-left">
                 <div>
                   <Label htmlFor="share-url">Share Link (includes code)</Label>
@@ -210,8 +244,12 @@ export default function UploadPage() {
                   </div>
                 </div>
               </div>
-
-              <Button onClick={resetState} className="w-full">Share Another File</Button>
+              <div className="flex gap-2">
+                <Button onClick={handleNativeShare} className="w-full">
+                  <Share2 className="mr-2 h-4 w-4" /> Share
+                </Button>
+                <Button onClick={resetState} className="w-full" variant="outline">Share Another File</Button>
+              </div>
             </div>
           )}
         </CardContent>
