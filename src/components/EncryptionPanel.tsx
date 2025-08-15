@@ -1,10 +1,11 @@
 import { useState, useCallback } from "react";
-import { Shield, Download, Copy, Settings, Eye, EyeOff } from "lucide-react";
+import { Shield, Download, Copy, Settings, Eye, EyeOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { encryptText, DEFAULT_MAPPING, mappingToString, stringToMapping, type CharacterMapping } from "@/lib/encryption";
 import { FileUpload } from "./FileUpload";
@@ -26,6 +27,13 @@ export function EncryptionPanel() {
     setEncryptedText("");
   }, []);
 
+  const handleClear = () => {
+    setOriginalText("");
+    setEncryptedText("");
+    setFileName("");
+    toast({ title: "Inputs cleared" });
+  };
+
   const handleEncrypt = useCallback(async () => {
     if (!originalText.trim()) {
       toast({
@@ -38,7 +46,6 @@ export function EncryptionPanel() {
 
     setIsProcessing(true);
     try {
-      // Parse custom mapping if user modified it
       let mapping = customMapping;
       try {
         mapping = stringToMapping(mappingString);
@@ -109,19 +116,29 @@ export function EncryptionPanel() {
 
   return (
     <Card className="p-6 bg-gradient-card shadow-card border-border/50">
-      <div className="flex items-center space-x-3 mb-6">
-        <Shield className="w-6 h-6 text-primary" />
-        <h2 className="text-2xl font-bold text-foreground">Encrypt Files</h2>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-3">
+          <Shield className="w-6 h-6 text-primary" />
+          <h2 className="text-2xl font-bold text-foreground">Encrypt Files</h2>
+        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" onClick={handleClear} disabled={!originalText && !encryptedText}>
+              <X className="w-5 h-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Clear all inputs</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       <div className="space-y-6">
-        {/* File Upload */}
         <div>
           <Label className="text-base font-medium mb-3 block">Upload File</Label>
           <FileUpload onFileLoad={handleFileLoad} />
         </div>
 
-        {/* Original Text Display */}
         {originalText && (
           <div>
             <Label className="text-base font-medium mb-3 block">
@@ -136,20 +153,28 @@ export function EncryptionPanel() {
           </div>
         )}
 
-        {/* Encryption Options */}
         <div className="bg-background/30 rounded-lg p-4 border border-border/30">
           <Label className="text-base font-medium mb-4 block">Encryption Options</Label>
           
           <div className="space-y-4">
             <div className="flex items-center space-x-3">
-              <Switch
-                id="base64"
-                checked={useBase64}
-                onCheckedChange={setUseBase64}
-              />
-              <Label htmlFor="base64" className="text-sm">
-                Use Base64 encoding (recommended for additional security)
-              </Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center space-x-3">
+                    <Switch
+                      id="base64"
+                      checked={useBase64}
+                      onCheckedChange={setUseBase64}
+                    />
+                    <Label htmlFor="base64" className="text-sm cursor-pointer">
+                      Use Base64 encoding
+                    </Label>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Adds an extra layer of encoding. Recommended for most uses.</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
 
             <div className="flex items-center space-x-3">
@@ -179,7 +204,6 @@ export function EncryptionPanel() {
           </div>
         </div>
 
-        {/* Encrypt Button */}
         <Button
           onClick={handleEncrypt}
           disabled={!originalText.trim() || isProcessing}
@@ -193,7 +217,6 @@ export function EncryptionPanel() {
           {isProcessing ? "Encrypting..." : "Encrypt Text"}
         </Button>
 
-        {/* Encrypted Text Output */}
         {encryptedText && (
           <div>
             <Label className="text-base font-medium mb-3 block text-primary">

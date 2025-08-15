@@ -5,12 +5,16 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EncryptionPanel } from "@/components/EncryptionPanel";
 import { DecryptionPanel } from "@/components/DecryptionPanel";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { AboutDialog } from "@/components/AboutDialog";
 
 const Index = () => {
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-gradient-bg">
       {/* Header */}
-      <header className="border-b border-border/30 bg-background/10 backdrop-blur-sm">
+      <header className="border-b border-border/30 bg-background/10 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -24,14 +28,17 @@ const Index = () => {
             </div>
             
             <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm" className="hidden sm:flex">
+              <Button variant="outline" size="sm" className="hidden sm:flex" onClick={() => setIsAboutOpen(true)}>
                 <Info className="w-4 h-4 mr-2" />
                 How it works
               </Button>
-              <Button variant="outline" size="sm">
-                <Github className="w-4 h-4 mr-2" />
-                Source
-              </Button>
+              <a href="https://github.com/lovable-labs/secureshare" target="_blank" rel="noopener noreferrer">
+                <Button variant="outline" size="sm">
+                  <Github className="w-4 h-4 mr-2" />
+                  Source
+                </Button>
+              </a>
+              <ThemeToggle />
             </div>
           </div>
         </div>
@@ -111,8 +118,7 @@ const Index = () => {
               <p className="text-sm text-muted-foreground leading-relaxed">
                 All encryption and decryption happens entirely in your browser using JavaScript. 
                 Your files and text never leave your device or get sent to any server. 
-                The custom encryption uses character mapping, string reversal, and optional Base64 encoding 
-                for secure local file sharing.
+                Click "How it works" in the header for more details.
               </p>
             </div>
           </div>
@@ -127,6 +133,8 @@ const Index = () => {
           </div>
         </div>
       </footer>
+      
+      <AboutDialog open={isAboutOpen} onOpenChange={setIsAboutOpen} />
     </div>
   );
 };
