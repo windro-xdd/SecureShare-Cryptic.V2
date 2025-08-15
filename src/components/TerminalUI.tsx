@@ -14,16 +14,31 @@ type LogEntry = {
   timestamp: string;
 };
 
+type ModeState = {
+  fileContent: string;
+  fileName: string | null;
+  passphrase: string;
+};
+
+const initialModeState: ModeState = {
+  fileContent: '',
+  fileName: null,
+  passphrase: '',
+};
+
 export function TerminalUI() {
   const [log, setLog] = useState<LogEntry[]>([]);
   const [mode, setMode] = useState<'encrypt' | 'decrypt'>('encrypt');
-  const [fileContent, setFileContent] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
-  const [passphrase, setPassphrase] = useState('');
+  
+  const [encryptState, setEncryptState] = useState<ModeState>(initialModeState);
+  const [decryptState, setDecryptState] = useState<ModeState>(initialModeState);
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const { toast } = useToast();
+  
   const logEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const addLogEntry = useCallback((type: LogEntry['type'], content: React.ReactNode) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -38,11 +53,18 @@ export function TerminalUI() {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [log]);
 
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, [mode]);
+
   const handleFileLoad = useCallback((content: string, filename: string) => {
-    setFileContent(content);
-    setFileName(filename);
+    if (mode === 'encrypt') {
+      setEncryptState(s => ({ ...s, fileContent: content, fileName: filename }));
+    } else {
+      setDecryptState(s => ({ ...s, fileContent: content, fileName: filename }));
+    }
     addLogEntry('success', `File received: ${filename} (${(content.length / 1024).toFixed(2)} KB)`);
-  }, [addLogEntry]);
+  }, [addLogEntry, mode]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -70,17 +92,28 @@ export function TerminalUI() {
     }
   }, [handleFileLoad]);
 
+  const handleClear = () => {
+    if (mode === 'encrypt') {
+      setEncryptState(initialModeState);
+    } else {
+      setDecryptState(initialModeState);
+    }
+    addLogEntry('info', `Inputs for ${mode} mode cleared.`);
+  };
+
   const executeCommand = async () => {
     if (isProcessing) return;
 
     const command = mode === 'encrypt' ? 'encrypt' : 'decrypt';
-    addLogEntry('command', `secureshare> ${command} --file ${fileName || 'pasted_text.txt'}`);
+    const currentState = mode === 'encrypt' ? encryptState : decryptState;
 
-    if (!fileContent) {
+    addLogEntry('command', `secureshare> ${command} --file ${currentState.fileName || (mode === 'encrypt' ? 'pasted_text.txt' : 'pasted_data.json')}`);
+
+    if (!currentState.fileContent) {
       addLogEntry('error', 'Error: No file or text content provided.');
       return;
     }
-    if (!passphrase) {
+    if (!currentState.passphrase) {
       addLogEntry('error', 'Error: Passphrase is required.');
       return;
     }
@@ -92,15 +125,15 @@ export function TerminalUI() {
       const startTime = performance.now();
       let result: string;
       if (mode === 'encrypt') {
-        result = await encrypt(fileContent, passphrase);
+        result = await encrypt(currentState.fileContent, currentState.passphrase);
       } else {
-        result = await decrypt(fileContent, passphrase);
+        result = await decrypt(currentState.fileContent, currentState.passphrase);
       }
       const endTime = performance.now();
       const duration = (endTime - startTime).toFixed(0);
 
       addLogEntry('success', `Operation successful in ${duration}ms.`);
-      addLogEntry('component', <OutputBlock content={result} isJson={mode === 'encrypt'} />);
+      addLogEntry('component', <OutputBlock content={result} isJson={mode === 'encrypt'} fileName={currentState.fileName} />);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
       addLogEntry('error', `Error: ${errorMessage}`);
@@ -109,7 +142,7 @@ export function TerminalUI() {
     }
   };
 
-  const OutputBlock = ({ content, isJson }: { content: string, isJson: boolean }) => (
+  const OutputBlock = ({ content, isJson, fileName }: { content: string, isJson: boolean, fileName: string | null }) => (
     <div className="bg-black/30 p-4 rounded-md my-2">
       <pre className="whitespace-pre-wrap break-all text-sm text-foreground/80 max-h-48 overflow-y-auto">{content}</pre>
       <div className="flex gap-2 mt-3">
@@ -130,6 +163,9 @@ export function TerminalUI() {
       </div>
     </div>
   );
+
+  const currentState = mode === 'encrypt' ? encryptState : decryptState;
+  const currentSetter = mode === 'encrypt' ? setEncryptState : setDecryptState;
 
   return (
     <div className="w-full max-w-4xl mx-auto h-[720px] flex flex-col bg-card/80 backdrop-blur-md border border-primary/20 rounded-lg shadow-card overflow-hidden">
@@ -185,7 +221,7 @@ export function TerminalUI() {
 
       {/* Input Area */}
       <div className="flex-shrink-0 p-4 border-t border-primary/20 bg-black/20 space-y-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <span className="text-primary font-bold">secureshare&gt;</span>
           <div className="flex items-center gap-2">
             <Button size="sm" variant={mode === 'encrypt' ? 'default' : 'outline'} onClick={() => setMode('encrypt')}><Shield className="w-4 h-4 mr-2"/>Encrypt</Button>
@@ -195,21 +231,28 @@ export function TerminalUI() {
             <Button size="sm" variant="outline" onClick={() => document.getElementById('file-input')?.click()}><Upload className="w-4 h-4 mr-2"/>Choose File</Button>
             <input id="file-input" type="file" className="hidden" onChange={handleFileSelect} />
           </div>
+          <Button size="sm" variant="ghost" onClick={handleClear} className="text-muted-foreground"><X className="w-4 h-4 mr-2"/>Clear</Button>
         </div>
         <div className="flex items-center gap-4">
           <label htmlFor="passphrase-input" className="flex items-center text-muted-foreground whitespace-nowrap">
             <KeyRound className="w-4 h-4 mr-2"/>--passphrase
           </label>
-          <PasswordInput id="passphrase-input" value={passphrase} onChange={e => setPassphrase(e.target.value)} placeholder="Enter passphrase..." className="flex-grow bg-background/50" />
+          <PasswordInput 
+            id="passphrase-input" 
+            value={currentState.passphrase} 
+            onChange={e => currentSetter(s => ({ ...s, passphrase: e.target.value }))} 
+            placeholder="Enter passphrase..." 
+            className="flex-grow bg-background/50" 
+          />
           <Button onClick={executeCommand} disabled={isProcessing} className="bg-gradient-primary text-primary-foreground hover:shadow-glow">
             {isProcessing ? 'Processing...' : 'Execute'}
           </Button>
         </div>
         <Textarea 
-          value={fileContent || ''}
+          ref={textareaRef}
+          value={currentState.fileContent}
           onChange={(e) => {
-            setFileContent(e.target.value);
-            if (!fileName) setFileName('pasted_text.txt');
+            currentSetter(s => ({ ...s, fileContent: e.target.value, fileName: s.fileName || (mode === 'encrypt' ? 'pasted_text.txt' : 'pasted_data.json') }));
           }}
           placeholder={mode === 'encrypt' ? "Paste text to encrypt here..." : "Paste encrypted JSON data here..."}
           className="min-h-[80px] bg-background/50 font-mono text-sm"
