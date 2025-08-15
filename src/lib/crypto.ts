@@ -94,7 +94,7 @@ async function deriveKek(downloadCode: string, salt: Uint8Array): Promise<Crypto
   return crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt: salt,
+      salt: salt.slice(), // FIX: Use slice() to create a copy with a definite ArrayBuffer
       iterations: KDF_ITERATIONS,
       hash: KDF_HASH,
     },
@@ -132,9 +132,9 @@ async function wrapFileKey(fileKey: CryptoKey, kek: CryptoKey): Promise<{ wrappe
 async function unwrapFileKey(wrappedKey: Uint8Array, iv: Uint8Array, kek: CryptoKey): Promise<CryptoKey> {
   return crypto.subtle.unwrapKey(
     "raw",
-    wrappedKey,
+    wrappedKey.slice(), // FIX: Use slice() to satisfy type checker
     kek,
-    { name: WRAP_ALG, iv: iv },
+    { name: WRAP_ALG, iv: iv.slice() }, // FIX: Use slice() to satisfy type checker
     { name: KEY_ALG, length: KEY_LEN },
     true,
     ["encrypt", "decrypt"]
@@ -204,7 +204,7 @@ export async function decryptFile(ciphertext: ArrayBuffer, envelope: any, downlo
 
     const iv = hexToArrayBuffer(envelope.iv);
     const decryptedBuffer = await crypto.subtle.decrypt(
-      { name: KEY_ALG, iv: iv },
+      { name: KEY_ALG, iv: iv.slice() }, // FIX: Use slice() to satisfy type checker
       fileKey,
       ciphertext
     );

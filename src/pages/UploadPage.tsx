@@ -6,6 +6,13 @@ import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { generateDownloadCode, encryptFile } from "@/lib/crypto";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +27,7 @@ export default function UploadPage() {
   const [downloadCode, setDownloadCode] = useState("");
   const [shareUrl, setShareUrl] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [expiresInHours, setExpiresInHours] = useState(24);
   const { toast } = useToast();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -63,7 +71,7 @@ export default function UploadPage() {
       if (uploadError) throw new Error(`Storage error: ${uploadError.message}`);
       setProgress(75);
 
-      const expires_at = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+      const expires_at = new Date(Date.now() + expiresInHours * 60 * 60 * 1000).toISOString();
 
       const { error: dbError } = await supabase.from("files").insert({
         id: fileId,
@@ -124,18 +132,37 @@ export default function UploadPage() {
               </div>
 
               {file && (
-                <div className="flex items-center justify-between rounded-md border border-border bg-background/50 p-3">
-                  <div className="flex items-center gap-3">
-                    <FileIcon className="h-6 w-6 text-primary" />
-                    <div>
-                      <p className="font-semibold">{file.name}</p>
-                      <p className="text-sm text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                <>
+                  <div className="flex items-center justify-between rounded-md border border-border bg-background/50 p-3">
+                    <div className="flex items-center gap-3">
+                      <FileIcon className="h-6 w-6 text-primary" />
+                      <div>
+                        <p className="font-semibold">{file.name}</p>
+                        <p className="text-sm text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                      </div>
                     </div>
+                    <Button variant="ghost" size="icon" onClick={() => setFile(null)}>
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={() => setFile(null)}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="expires-in">Expires In</Label>
+                    <Select
+                      value={String(expiresInHours)}
+                      onValueChange={(value) => setExpiresInHours(Number(value))}
+                    >
+                      <SelectTrigger id="expires-in" className="w-full">
+                        <SelectValue placeholder="Select expiration time" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 Hour</SelectItem>
+                        <SelectItem value="6">6 Hours</SelectItem>
+                        <SelectItem value="12">12 Hours</SelectItem>
+                        <SelectItem value="24">24 Hours</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
               )}
 
               {status === "uploading" && <Progress value={progress} className="w-full" />}
@@ -158,7 +185,7 @@ export default function UploadPage() {
               <CheckCircle className="mx-auto h-16 w-16 text-success" />
               <h3 className="text-2xl font-bold">File Encrypted & Ready to Share!</h3>
               <p className="text-muted-foreground">
-                Share the link and code below. The file will expire in 24 hours.
+                Share the link and code below. The file will expire in {expiresInHours} {expiresInHours === 1 ? 'hour' : 'hours'}.
               </p>
               
               <div className="space-y-4 text-left">
