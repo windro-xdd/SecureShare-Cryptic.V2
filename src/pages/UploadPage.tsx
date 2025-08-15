@@ -108,9 +108,18 @@ export default function UploadPage() {
     }
   };
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast({ title: `${label} copied to clipboard!` });
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: `${label} copied to clipboard!` });
+    } catch (err) {
+      console.error("Failed to copy text: ", err);
+      toast({
+        title: "Failed to copy",
+        description: "Could not copy text to clipboard.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleNativeShare = async () => {
@@ -125,7 +134,7 @@ export default function UploadPage() {
         console.error("Error sharing:", error);
       }
     } else {
-      copyToClipboard(shareUrl, "Share link");
+      await copyToClipboard(shareUrl, "Share link");
     }
   };
 
