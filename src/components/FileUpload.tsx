@@ -64,7 +64,7 @@ export function FileUpload({ onFileLoad, accept = ".txt,.md,.json,.csv", classNa
     <div className={`relative ${className}`}>
       <div
         className={`
-          border-2 border-dashed rounded-lg p-8 text-center transition-all duration-300
+          border-2 border-dashed rounded-lg p-8 text-center transition-all duration-200
           ${isDragOver 
             ? 'border-primary bg-primary/5 shadow-glow' 
             : 'border-border hover:border-primary/50 hover:bg-primary/2'
@@ -88,13 +88,13 @@ export function FileUpload({ onFileLoad, accept = ".txt,.md,.json,.csv", classNa
         
         <div className="flex flex-col items-center space-y-4">
           {isLoading ? (
-            <div className="w-12 h-12 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <div className="w-16 h-16 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           ) : (
-            <Upload className="w-12 h-12 text-muted-foreground" />
+            <Upload className="w-16 h-16 text-muted-foreground" />
           )}
           
           <div>
-            <p className="text-lg font-medium text-foreground">
+            <p className="text-xl font-medium text-foreground">
               {isLoading ? "Reading file..." : "Drop your file here"}
             </p>
             <p className="text-sm text-muted-foreground mt-1">
@@ -106,7 +106,7 @@ export function FileUpload({ onFileLoad, accept = ".txt,.md,.json,.csv", classNa
             variant="outline" 
             size="sm"
             disabled={isLoading}
-            className="transition-all duration-300 hover:shadow-glow"
+            className="transition-all duration-200 hover:shadow-glow"
           >
             <FileText className="w-4 h-4 mr-2" />
             Choose File

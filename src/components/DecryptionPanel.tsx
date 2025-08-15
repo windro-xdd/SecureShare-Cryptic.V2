@@ -85,7 +85,7 @@ export function DecryptionPanel() {
   }, [decryptedText, toast]);
 
   return (
-    <Card className="p-6 bg-gradient-card shadow-card border-border/50">
+    <Card className="p-6 bg-gradient-card shadow-lg border-border/50 rounded-xl">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">
           <Unlock className="w-6 h-6 text-primary" />
