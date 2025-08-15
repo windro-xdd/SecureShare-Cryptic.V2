@@ -45,80 +45,95 @@ const Index = () => {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        {/* Hero Section */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center space-x-2 bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-medium mb-6">
-            <Shield className="w-4 h-4" />
-            <span>100% Client-Side Encryption</span>
-          </div>
-          
-          <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
-            Secure File
-            <span className="bg-gradient-primary bg-clip-text text-transparent"> Encryption</span>
-          </h1>
-          
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
-            Encrypt and decrypt your text files securely in your browser. 
-            No data ever leaves your device - complete privacy guaranteed.
-          </p>
+      <main className="container mx-auto px-4 py-8 lg:py-16">
+        <div className="grid lg:grid-cols-2 lg:gap-16 items-start">
+          {/* Left Column: Hero Text */}
+          <div className="text-center lg:text-left lg:pt-4">
+            <div className="inline-flex items-center space-x-2 bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-medium mb-6">
+              <Shield className="w-4 h-4" />
+              <span>100% Client-Side Encryption</span>
+            </div>
+            
+            <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
+              Secure File
+              <span className="bg-gradient-primary bg-clip-text text-transparent"> Encryption</span>
+            </h1>
+            
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto lg:mx-0 mb-8">
+              Encrypt and decrypt your text files securely in your browser. 
+              No data ever leaves your device - complete privacy guaranteed.
+            </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-6 text-sm text-muted-foreground">
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-success rounded-full"></div>
-              <span>Custom character mapping</span>
+            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start space-y-2 sm:space-y-0 sm:space-x-6 text-sm text-muted-foreground">
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-success rounded-full"></div>
+                <span>AES-256-GCM Encryption</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-success rounded-full"></div>
+                <span>Device-Specific Keys</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-success rounded-full"></div>
+                <span>No Server Interaction</span>
+              </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-success rounded-full"></div>
-              <span>String reversal algorithm</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-success rounded-full"></div>
-              <span>Optional Base64 encoding</span>
-            </div>
+
+            {/* Security Notice - Desktop */}
+            <Card className="hidden lg:block mt-12 p-6 bg-primary/5 border-primary/20">
+              <div className="flex items-start space-x-3">
+                <Shield className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-foreground mb-2">Security & Privacy</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    All processing happens in your browser. Your files and passphrase never leave your device. 
+                    Click "How it works" for details.
+                  </p>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* Right Column: Main App Interface */}
+          <div className="w-full mt-12 lg:mt-0">
+            <Tabs defaultValue="encrypt" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-6 bg-background/50 border border-border/50">
+                <TabsTrigger 
+                  value="encrypt" 
+                  className="flex items-center space-x-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  <Lock className="w-4 h-4" />
+                  <span>Encrypt</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="decrypt"
+                  className="flex items-center space-x-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  <Unlock className="w-4 h-4" />
+                  <span>Decrypt</span>
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="encrypt">
+                <EncryptionPanel />
+              </TabsContent>
+
+              <TabsContent value="decrypt">
+                <DecryptionPanel />
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
 
-        {/* Main App Interface */}
-        <div className="max-w-4xl mx-auto">
-          <Tabs defaultValue="encrypt" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-8 bg-background/50 border border-border/50">
-              <TabsTrigger 
-                value="encrypt" 
-                className="flex items-center space-x-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-              >
-                <Lock className="w-4 h-4" />
-                <span>Encrypt</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="decrypt"
-                className="flex items-center space-x-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-              >
-                <Unlock className="w-4 h-4" />
-                <span>Decrypt</span>
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="encrypt">
-              <EncryptionPanel />
-            </TabsContent>
-
-            <TabsContent value="decrypt">
-              <DecryptionPanel />
-            </TabsContent>
-          </Tabs>
-        </div>
-
-        {/* Security Notice */}
-        <Card className="max-w-2xl mx-auto mt-12 p-6 bg-primary/5 border-primary/20">
+        {/* Security Notice - Mobile */}
+        <Card className="lg:hidden max-w-2xl mx-auto mt-12 p-6 bg-primary/5 border-primary/20">
           <div className="flex items-start space-x-3">
             <Shield className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
             <div>
               <h3 className="font-semibold text-foreground mb-2">Security & Privacy</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                All encryption and decryption happens entirely in your browser using JavaScript. 
-                Your files and text never leave your device or get sent to any server. 
-                Click "How it works" in the header for more details.
+                All processing happens in your browser. Your files and passphrase never leave your device. 
+                Click "How it works" for details.
               </p>
             </div>
           </div>
