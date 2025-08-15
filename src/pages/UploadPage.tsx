@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { generateDownloadCode, encryptFile } from "@/lib/crypto";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +29,7 @@ export default function UploadPage() {
   const [shareUrl, setShareUrl] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [expiresInHours, setExpiresInHours] = useState(24);
+  const [expireAfterDownload, setExpireAfterDownload] = useState(true);
   const { toast } = useToast();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -72,11 +74,13 @@ export default function UploadPage() {
       setProgress(75);
 
       const expires_at = new Date(Date.now() + expiresInHours * 60 * 60 * 1000).toISOString();
+      const max_downloads = expireAfterDownload ? 1 : 10;
 
       const { error: dbError } = await supabase.from("files").insert({
         id: fileId,
         ...envelope,
         expires_at,
+        max_downloads,
       });
 
       if (dbError) throw new Error(`Database error: ${dbError.message}`);
@@ -132,7 +136,7 @@ export default function UploadPage() {
               </div>
 
               {file && (
-                <>
+                <div className="space-y-4">
                   <div className="flex items-center justify-between rounded-md border border-border bg-background/50 p-3">
                     <div className="flex items-center gap-3">
                       <FileIcon className="h-6 w-6 text-primary" />
@@ -162,7 +166,20 @@ export default function UploadPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                </>
+                   <div className="flex items-center justify-between rounded-lg border p-3">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="expire-after-download">Expire after 1 download</Label>
+                      <p className="text-[0.8rem] text-muted-foreground">
+                        The link will become invalid after one download.
+                      </p>
+                    </div>
+                    <Switch
+                      id="expire-after-download"
+                      checked={expireAfterDownload}
+                      onCheckedChange={setExpireAfterDownload}
+                    />
+                  </div>
+                </div>
               )}
 
               {status === "uploading" && <Progress value={progress} className="w-full" />}
@@ -185,7 +202,8 @@ export default function UploadPage() {
               <CheckCircle className="mx-auto h-16 w-16 text-success" />
               <h3 className="text-2xl font-bold">File Encrypted & Ready to Share!</h3>
               <p className="text-muted-foreground">
-                Share the link and code below. The file will expire in {expiresInHours} {expiresInHours === 1 ? 'hour' : 'hours'}.
+                Share the link below. The file will expire in {expiresInHours} {expiresInHours === 1 ? 'hour' : 'hours'}
+                {expireAfterDownload && " or after one download"}.
               </p>
               
               <div className="space-y-4 text-left">
@@ -194,15 +212,6 @@ export default function UploadPage() {
                   <div className="flex gap-2">
                     <Input id="share-url" readOnly value={shareUrl} className="font-mono"/>
                     <Button variant="outline" size="icon" onClick={() => copyToClipboard(shareUrl, "Share link")}>
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="download-code">Download Code</Label>
-                  <div className="flex gap-2">
-                    <Input id="download-code" readOnly value={downloadCode} className="font-mono"/>
-                    <Button variant="outline" size="icon" onClick={() => copyToClipboard(downloadCode, "Download code")}>
                       <Copy className="h-4 w-4" />
                     </Button>
                   </div>

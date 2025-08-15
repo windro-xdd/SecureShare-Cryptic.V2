@@ -44,7 +44,7 @@ export default function DownloadPage() {
       const { data, error } = await fetchMetadata(fileId);
       if (error || !data) {
         setStatus("error");
-        setErrorMessage(error?.message || "File not found or expired.");
+        setErrorMessage(error?.message || "File not found, expired, or already downloaded.");
       } else {
         setMetadata(data);
         setStatus("ready");
@@ -60,6 +60,17 @@ export default function DownloadPage() {
     setErrorMessage("");
 
     try {
+      // Step 1: Increment download count via Edge Function to validate the link
+      const { error: functionError } = await supabase.functions.invoke('increment-download-count', {
+        body: { fileId },
+      });
+
+      if (functionError) {
+        const errorResponse = await functionError.context?.json();
+        throw new Error(errorResponse?.error || 'This link has expired or reached its download limit.');
+      }
+
+      // Step 2: Download the file from storage
       const filePath = `${fileId}/${metadata.filename}`;
       const { data: blob, error: downloadError } = await supabase.storage
         .from("files")
@@ -67,6 +78,7 @@ export default function DownloadPage() {
 
       if (downloadError) throw new Error(`Failed to download file: ${downloadError.message}`);
 
+      // Step 3: Decrypt and save the file
       const decryptedBlob = await decryptFile(await blob.arrayBuffer(), metadata, downloadCode);
 
       const url = URL.createObjectURL(decryptedBlob);
@@ -126,7 +138,7 @@ export default function DownloadPage() {
                 />
               </div>
               <Button onClick={handleDownload} disabled={!downloadCode || status === "decrypting"} className="w-full bg-gradient-primary text-primary-foreground hover:shadow-glow">
-                {status === "decrypting" ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Decrypting & Downloading...</> : <><DownloadCloud className="mr-2 h-4 w-4" /> Decrypt & Download</>}
+                {status === "decrypting" ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying & Downloading...</> : <><DownloadCloud className="mr-2 h-4 w-4" /> Decrypt & Download</>}
               </Button>
             </>
           )}
@@ -136,9 +148,9 @@ export default function DownloadPage() {
               <CheckCircle className="mx-auto h-16 w-16 text-success" />
               <h3 className="text-2xl font-bold">Download Started!</h3>
               <p className="text-muted-foreground">
-                Your file has been decrypted and should be downloading now.
+                Your file has been decrypted and should be downloading now. This link is now expired.
               </p>
-              <Button onClick={() => window.location.href = '/'} className="w-full">Share a File</Button>
+              <Button onClick={() => window.location.href = '/'} className="w-full">Share Another File</Button>
             </div>
           )}
 
