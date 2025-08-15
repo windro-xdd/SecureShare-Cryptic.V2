@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import { UploadCloud, File as FileIcon, CheckCircle, Copy, AlertTriangle, Loader2, X, ShieldCheck, MessageSquare, Share2 } from "lucide-react";
+import { UploadCloud, File as FileIcon, CheckCircle, Copy, AlertTriangle, Loader2, X, Share2, Palette } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -20,8 +20,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useTheme } from "@/components/ThemeProvider";
 
 type Status = "idle" | "uploading" | "success" | "error";
+
+const accents = [
+  { name: "teal", color: "bg-[hsl(180,81%,55%)]" },
+  { name: "blue", color: "bg-[hsl(217,91%,60%)]" },
+  { name: "rose", color: "bg-[hsl(347,90%,61%)]" },
+  { name: "amber", color: "bg-[hsl(43,96%,56%)]" },
+];
 
 export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -33,6 +41,7 @@ export default function UploadPage() {
   const [maxDownloads, setMaxDownloads] = useState(1);
   const [instructions, setInstructions] = useState("");
   const { toast } = useToast();
+  const { accent, setAccent } = useTheme();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -81,6 +90,7 @@ export default function UploadPage() {
         ...envelope,
         expires_at,
         max_downloads: maxDownloads,
+        theme_accent: accent,
       });
 
       if (dbError) throw new Error(`Database error: ${dbError.message}`);
@@ -207,6 +217,22 @@ export default function UploadPage() {
                       onChange={(e) => setInstructions(e.target.value)}
                       maxLength={280}
                     />
+                  </div>
+                   <div className="space-y-2">
+                    <Label className="flex items-center"><Palette className="mr-2 h-4 w-4" /> Accent Color</Label>
+                    <div className="flex items-center gap-2">
+                      {accents.map((a) => (
+                        <button
+                          key={a.name}
+                          onClick={() => setAccent(a.name as any)}
+                          className={cn(
+                            "h-8 w-8 rounded-full transition-all",
+                            a.color,
+                            accent === a.name && "ring-2 ring-offset-2 ring-ring ring-offset-background"
+                          )}
+                        />
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}

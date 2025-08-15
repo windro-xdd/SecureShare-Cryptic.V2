@@ -202,7 +202,7 @@ export async function decryptInstructions(envelope: any, fileKey: CryptoKey): Pr
         const decryptedBuffer = await crypto.subtle.decrypt(
             { name: KEY_ALG, iv: instructions_iv.slice() },
             fileKey,
-            encrypted_instructions
+            encrypted_instructions.slice()
         );
         return new TextDecoder().decode(decryptedBuffer);
     } catch (error) {

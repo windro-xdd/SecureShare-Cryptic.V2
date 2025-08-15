@@ -2,12 +2,13 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams, useLocation } from "react-router-dom";
 import { DownloadCloud, KeyRound, File as FileIcon, AlertTriangle, Loader2, CheckCircle, MessageSquare, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getFileKey, decryptInstructions, decryptFile } from "@/lib/crypto";
 import { supabase } from "@/integrations/supabase/client";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useTheme } from "@/components/ThemeProvider";
 
 type Status = "idle" | "loading" | "verifying" | "ready" | "decrypting" | "success" | "error";
 type FileMetadata = Awaited<ReturnType<typeof fetchMetadata>>;
@@ -23,6 +24,7 @@ function fetchMetadata(fileId: string) {
 export default function DownloadPage() {
   const { fileId } = useParams<{ fileId: string }>();
   const location = useLocation();
+  const { setAccent } = useTheme();
 
   const [status, setStatus] = useState<Status>("loading");
   const [metadata, setMetadata] = useState<FileMetadata["data"] | null>(null);
@@ -49,11 +51,14 @@ export default function DownloadPage() {
         setErrorMessage(error?.message || "File not found, expired, or has reached its download limit.");
       } else {
         setMetadata(data);
+        if (data.theme_accent) {
+          setAccent(data.theme_accent as any);
+        }
         setStatus("idle");
       }
     };
     getMetadata();
-  }, [fileId, initialCode]);
+  }, [fileId, initialCode, setAccent]);
 
   const handleVerifyCode = async () => {
     if (!metadata || !downloadCode) return;
