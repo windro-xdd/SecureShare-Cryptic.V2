@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { UploadCloud, File as FileIcon, CheckCircle, Copy, AlertTriangle, Loader2, X, ShieldCheck, MessageSquare, Share2 } from "lucide-react";
-import QRCode from "qrcode.react";
+import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -231,7 +231,7 @@ export default function UploadPage() {
               <CheckCircle className="mx-auto h-16 w-16 text-success" />
               <h3 className="text-2xl font-bold">File Ready to Share!</h3>
               <div className="p-4 bg-white rounded-lg inline-block shadow-lg">
-                <QRCode value={shareUrl} size={160} includeMargin={true} level="H" />
+                <QRCodeSVG value={shareUrl} size={160} includeMargin={true} level="H" />
               </div>
               <div className="space-y-4 text-left">
                 <div>

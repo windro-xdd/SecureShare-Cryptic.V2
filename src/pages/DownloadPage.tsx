@@ -4,6 +4,7 @@ import { DownloadCloud, KeyRound, File as FileIcon, AlertTriangle, Loader2, Chec
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { getFileKey, decryptInstructions, decryptFile } from "@/lib/crypto";
 import { supabase } from "@/integrations/supabase/client";
 import { ThemeToggle } from "@/components/ThemeToggle";
