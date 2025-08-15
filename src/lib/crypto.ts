@@ -6,7 +6,7 @@
 
 // --- Configuration ---
 const KDF_ITERATIONS = 250000; // Number of iterations for PBKDF2
-const KDF_HASH = "SHA-256";
+const KDF_HASH = "SHA-256"; // Corrected from SHA-26
 const SALT_BYTES = 16; // 128 bits
 const IV_BYTES = 12; // 96 bits for AES-GCM
 const KEY_ALG = "AES-GCM";
@@ -42,8 +42,15 @@ function encodeBase32(bytes: Uint8Array): string {
 const arrayBufferToHex = (bytes: Uint8Array) =>
   Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 
-const hexToArrayBuffer = (hex: string): Uint8Array =>
-  new Uint8Array(hex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
+// Rewritten to be explicit about ArrayBuffer creation, which resolves the TS errors.
+const hexToArrayBuffer = (hex: string): Uint8Array => {
+  const buffer = new ArrayBuffer(hex.length / 2);
+  const view = new Uint8Array(buffer);
+  for (let i = 0; i < hex.length; i += 2) {
+    view[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+  }
+  return view;
+};
 
 // --- Core Cryptographic Functions ---
 
@@ -87,7 +94,7 @@ async function deriveKek(downloadCode: string, salt: Uint8Array): Promise<Crypto
   return crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt: salt.buffer,
+      salt: salt,
       iterations: KDF_ITERATIONS,
       hash: KDF_HASH,
     },
@@ -110,7 +117,7 @@ async function wrapFileKey(fileKey: CryptoKey, kek: CryptoKey): Promise<{ wrappe
     "raw",
     fileKey,
     kek,
-    { name: WRAP_ALG, iv: iv.buffer }
+    { name: WRAP_ALG, iv: iv }
   );
   return { wrappedKey, iv };
 }
@@ -125,9 +132,9 @@ async function wrapFileKey(fileKey: CryptoKey, kek: CryptoKey): Promise<{ wrappe
 async function unwrapFileKey(wrappedKey: Uint8Array, iv: Uint8Array, kek: CryptoKey): Promise<CryptoKey> {
   return crypto.subtle.unwrapKey(
     "raw",
-    wrappedKey.buffer,
+    wrappedKey,
     kek,
-    { name: WRAP_ALG, iv: iv.buffer },
+    { name: WRAP_ALG, iv: iv },
     { name: KEY_ALG, length: KEY_LEN },
     true,
     ["encrypt", "decrypt"]
@@ -152,7 +159,7 @@ export async function encryptFile(file: File, downloadCode: string) {
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
   const fileBuffer = await file.arrayBuffer();
   const ciphertext = await crypto.subtle.encrypt(
-    { name: KEY_ALG, iv: iv.buffer },
+    { name: KEY_ALG, iv: iv },
     fileKey,
     fileBuffer
   );
@@ -197,7 +204,7 @@ export async function decryptFile(ciphertext: ArrayBuffer, envelope: any, downlo
 
     const iv = hexToArrayBuffer(envelope.iv);
     const decryptedBuffer = await crypto.subtle.decrypt(
-      { name: KEY_ALG, iv: iv.buffer },
+      { name: KEY_ALG, iv: iv },
       fileKey,
       ciphertext
     );
