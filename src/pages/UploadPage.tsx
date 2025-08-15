@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import { UploadCloud, File as FileIcon, CheckCircle, Copy, AlertTriangle, Loader2, X } from "lucide-react";
+import { UploadCloud, File as FileIcon, CheckCircle, Copy, AlertTriangle, Loader2, X, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { generateDownloadCode, encryptFile } from "@/lib/crypto";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -29,7 +28,6 @@ export default function UploadPage() {
   const [shareUrl, setShareUrl] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [expiresInHours, setExpiresInHours] = useState(24);
-  const [expireAfterDownload, setExpireAfterDownload] = useState(true);
   const { toast } = useToast();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -74,7 +72,7 @@ export default function UploadPage() {
       setProgress(75);
 
       const expires_at = new Date(Date.now() + expiresInHours * 60 * 60 * 1000).toISOString();
-      const max_downloads = expireAfterDownload ? 1 : 10;
+      const max_downloads = 1; // Enforce single download
 
       const { error: dbError } = await supabase.from("files").insert({
         id: fileId,
@@ -166,18 +164,14 @@ export default function UploadPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                   <div className="flex items-center justify-between rounded-lg border p-3">
+                   <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/10 p-3">
+                    <ShieldCheck className="h-5 w-5 text-primary" />
                     <div className="space-y-0.5">
-                      <Label htmlFor="expire-after-download">Expire after 1 download</Label>
+                      <p className="text-sm font-medium text-foreground">Links are single-use</p>
                       <p className="text-[0.8rem] text-muted-foreground">
-                        The link will become invalid after one download.
+                        For maximum security, links expire after one download.
                       </p>
                     </div>
-                    <Switch
-                      id="expire-after-download"
-                      checked={expireAfterDownload}
-                      onCheckedChange={setExpireAfterDownload}
-                    />
                   </div>
                 </div>
               )}
@@ -202,8 +196,7 @@ export default function UploadPage() {
               <CheckCircle className="mx-auto h-16 w-16 text-success" />
               <h3 className="text-2xl font-bold">File Encrypted & Ready to Share!</h3>
               <p className="text-muted-foreground">
-                Share the link below. The file will expire in {expiresInHours} {expiresInHours === 1 ? 'hour' : 'hours'}
-                {expireAfterDownload && " or after one download"}.
+                Share the link below. The file will expire in {expiresInHours} {expiresInHours === 1 ? 'hour' : 'hours'} or after one download.
               </p>
               
               <div className="space-y-4 text-left">
