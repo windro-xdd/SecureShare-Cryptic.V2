@@ -11,14 +11,15 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { useTheme } from "@/components/ThemeProvider";
 
 type Status = "idle" | "loading" | "verifying" | "ready" | "decrypting" | "success" | "error";
-type FileMetadata = Awaited<ReturnType<typeof fetchMetadata>>;
 
 function fetchMetadata(fileId: string) {
+  // Use .limit(1) instead of .single() to prevent an error when no file is found.
+  // This allows us to handle the "not found" case gracefully.
   return supabase
     .from("files")
     .select("*")
     .eq("id", fileId)
-    .single();
+    .limit(1);
 }
 
 export default function DownloadPage() {
@@ -27,7 +28,7 @@ export default function DownloadPage() {
   const { setAccent } = useTheme();
 
   const [status, setStatus] = useState<Status>("loading");
-  const [metadata, setMetadata] = useState<FileMetadata["data"] | null>(null);
+  const [metadata, setMetadata] = useState<any | null>(null);
   const [downloadCode, setDownloadCode] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isCodeVerified, setIsCodeVerified] = useState(false);
@@ -46,13 +47,22 @@ export default function DownloadPage() {
     const getMetadata = async () => {
       setStatus("loading");
       const { data, error } = await fetchMetadata(fileId);
-      if (error || !data) {
+
+      if (error) {
         setStatus("error");
-        setErrorMessage(error?.message || "File not found, expired, or has reached its download limit.");
+        setErrorMessage("An unexpected error occurred. Please try again later.");
+        console.error(error);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        setStatus("error");
+        setErrorMessage("This link has expired or reached its download limit.");
       } else {
-        setMetadata(data);
-        if (data.theme_accent) {
-          setAccent(data.theme_accent as any);
+        const fileData = data[0];
+        setMetadata(fileData);
+        if (fileData.theme_accent) {
+          setAccent(fileData.theme_accent as any);
         }
         setStatus("idle");
       }
