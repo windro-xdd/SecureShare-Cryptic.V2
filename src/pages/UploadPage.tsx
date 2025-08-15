@@ -114,7 +114,7 @@ export default function UploadPage() {
     <div className="min-h-screen bg-gradient-bg flex items-center justify-center p-4">
       <Card className="w-full max-w-lg bg-card/80 backdrop-blur-md border-primary/20 shadow-card">
         <CardHeader>
-          <CardTitle className="text-center text-2xl font-bold text-primary">[CrypticX]</CardTitle>
+          <CardTitle className="text-center text-2xl font-bold text-primary">Secure Share</CardTitle>
         </CardHeader>
         <CardContent>
           {status !== "success" && (
