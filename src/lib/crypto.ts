@@ -154,7 +154,7 @@ export async function encryptFile(file: File, downloadCode: string) {
   const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTES));
   const kek = await deriveKek(downloadCode, salt);
   
-  const { wrappedKey } = await wrapFileKey(fileKey, kek);
+  const { wrappedKey, iv: wrapIv } = await wrapFileKey(fileKey, kek);
 
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
   const fileBuffer = await file.arrayBuffer();
@@ -177,6 +177,7 @@ export async function encryptFile(file: File, downloadCode: string) {
       hash: KDF_HASH,
     },
     wrapped_file_key: arrayBufferToHex(new Uint8Array(wrappedKey)),
+    wrap_iv: arrayBufferToHex(wrapIv),
     // Note: expires_at and max_downloads are set server-side or in the upload component
   };
 
@@ -198,7 +199,7 @@ export async function decryptFile(ciphertext: ArrayBuffer, envelope: any, downlo
     const kek = await deriveKek(downloadCode, salt);
 
     const wrappedKey = hexToArrayBuffer(envelope.wrapped_file_key);
-    const wrapIv = hexToArrayBuffer(envelope.iv);
+    const wrapIv = hexToArrayBuffer(envelope.wrap_iv);
 
     const fileKey = await unwrapFileKey(wrappedKey, wrapIv, kek);
 
