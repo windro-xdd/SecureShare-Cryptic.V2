@@ -70,6 +70,26 @@ export default function DownloadPage() {
     getMetadata();
   }, [fileId, initialCode, setAccent]);
 
+  useEffect(() => {
+    switch (status) {
+      case "loading":
+        document.title = "SecureShare - Loading File...";
+        break;
+      case "idle":
+      case "ready":
+      case "verifying":
+      case "decrypting":
+        document.title = metadata ? `Download: ${metadata.filename}` : "SecureShare - Download File";
+        break;
+      case "success":
+        document.title = "SecureShare - Download Complete!";
+        break;
+      case "error":
+        document.title = "SecureShare - Error";
+        break;
+    }
+  }, [status, metadata]);
+
   const handleVerifyCode = async () => {
     if (!metadata || !downloadCode) return;
     setStatus("verifying");

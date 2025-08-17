@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { UploadCloud, File as FileIcon, CheckCircle, Copy, AlertTriangle, Loader2, X, Share2, Palette } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -42,6 +42,23 @@ export default function UploadPage() {
   const [instructions, setInstructions] = useState("");
   const { toast } = useToast();
   const { accent, setAccent } = useTheme();
+
+  useEffect(() => {
+    switch (status) {
+      case "idle":
+        document.title = file ? `Ready to Share: ${file.name}` : "SecureShare - Upload File";
+        break;
+      case "uploading":
+        document.title = "SecureShare - Uploading...";
+        break;
+      case "success":
+        document.title = "SecureShare - Share Link Ready!";
+        break;
+      case "error":
+        document.title = "SecureShare - Upload Failed";
+        break;
+    }
+  }, [status, file]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
