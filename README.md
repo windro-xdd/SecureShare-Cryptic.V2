@@ -12,8 +12,6 @@
 
 *SecureShare is a portfolio project demonstrating advanced client-side cryptography, modern web architecture, and a focus on user privacy.*
 
-> **Note:** You can add a GIF of the application flow here to make your portfolio even more impressive!
-> `![SecureShare Demo](link-to-your-demo.gif)`
 
 ## The Problem 🤔
 
